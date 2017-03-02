@@ -1,0 +1,68 @@
+
+ISIC (v0.07)	12/22/2006, by Shu Xiao (sxiao@cisco.com)
+
+	- New IPv6 utilities: isic6, tcpsic6, udpsic6, icmpsic6.
+	
+	- New tool multisic for sending random multicast UDP packets. 
+	
+	- Fixed compilation errors with GCC v4.
+
+	- Added -k skip option for esic per the request from some users.
+
+	- Placed the flood control under low traffic limit case only.
+
+		The original flood protection code calls gettimeofday(),
+		and runs after sending each packet. This is time consumping
+		and prevents the tool from reaching high traffic limit
+		on high speed interface (eg. 1000Base-TX). Now the flood
+		control will take effect only if the specified maximum rate
+		is less than 10MB/s.
+
+	- Corrected -t option bug with tcpsic:
+	
+		The old one was using it reversely, e.g. -t 30 would generate
+		packet with 30% of them having correct TCP checksum. But -t 
+		is actually for the percentage of bad TCP checksum. 
+
+	- Changed to used 32-bit random numbers for some fields:
+	
+		For IPv4 *sic tools, the source/destination IP address and
+		TCP sequence/acknowledge numbers are 32-bit width, and
+		should be assigned with equal size random numbers. The old
+		code did not do shifting correctly.
+
+	- Changed the default value to 10 for all percentage options.
+ 
+	- Cleaned the usage printout of icmpsic:
+
+		There were ports used in the usage printout of icmpsic. This
+		was misleading since no ports arguments needed for it.
+
+	- New manual page, try to get more help with "man isic".
+
+
+ISIC (v0.06)	11/10/2004, by Shu Xiao (sxiao@cisco.com)
+
+	- Changed to link with Libnet 1.1.x:
+
+		With minimum code change to replace old calls to Libnet 1.0.x
+		with Libnet 1.1.x functions, and keep Mike's major fuzzing 
+		algorithm untouched.
+		
+		Also found that v0.05 had checksum error with esic, which 
+		rooted from bug of Libnet 1.0.x. v0.06 esic works fine with 
+		Libnet 1.1.x 
+
+	- More accurate datapush rate calculation: 
+
+		In v0.05 isic, tcpsic, udpsic and icmpsic code, the return
+		value of the call to packet sending function was not checked.
+		But it actually could fail and return -1, in which case the
+		datapush byte count was calculated wrong. v0.06 code skips
+		failed cases of data pushing.
+ 	
+	- Fixed esic MAC address printout bug:
+
+		v0.05 esic has a minor problem with MAC address printout.
+		The source and destination MAC addresses was actually reversed.
+

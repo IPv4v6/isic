@@ -1,0 +1,337 @@
+#include "isic.h"
+
+/*
+ * ISIC - IP Stack Integrity Checker
+ *
+ * This is tuned for ethernet sized frames (1500 bytes)
+ * For user over a modem or frame (or other) you will have to change the
+ * 'rand() & 0x4ff' line below.  The 0x4ff needs to be less than the size of
+ * the frame size minus the length of the ip header (20 bytes IIRC)
+ */
+
+
+/* Variables shared between main and the signal handler so we can display
+ * output if ctrl-c'd
+ */
+u_int seed = 0;
+u_long acx = 0;
+struct timeval starttime;
+u_long datapushed = 0;			/* How many bytes we pushed */
+
+
+int
+main(int argc, char **argv)
+{
+	int c;
+	u_char *buf = NULL;
+	u_short	*payload = NULL;
+	u_int payload_s = 0;
+
+	/* libnet variables */
+	char errbuf[LIBNET_ERRBUF_SIZE];
+	libnet_t *l;
+	char *device = NULL;
+
+	/* Packet Variables */
+	struct ip *ip_hdr = NULL;
+	u_int32_t src_ip = 0, dst_ip = 0;
+	u_char tos, ttl, ver;
+	u_int id, prot, frag_off, hl;
+
+
+	/* Functionality Variables */
+	int src_ip_rand = 0, dst_ip_rand = 0;
+	struct timeval tv, tv2;
+	float sec;
+	unsigned int cx = 0;
+	u_long max_pushed = 10240;		/* 10MB/sec */
+	u_long num_to_send = 0xffffffff;	/* Send 4billion packets */
+	u_long skip = 0; 			/* Skip how many packets */
+	int printout = 0;			/* Debugging */
+	u_int repeat = 1;			/* How many times to send
+						 *  each packet */
+
+	/* Defaults */
+	float FragPct	=	10;
+	float BadIPVer	=	10;
+	float IPLength	=	10;
+
+	/* Not crypto strong randomness but we don't really care.  And this  *
+	 * gives us a way to determine the seed while the program is running *
+ 	 * if we need to repeat the results				     */
+	seed = getpid();
+
+	/* Initialize libnet context, Root priviledges are required.*/ 
+	l = libnet_init(
+            LIBNET_RAW4_ADV,                        /* injection type */
+            device,                                 /* network interface */
+            errbuf);                                /* error buffer */
+
+	if (l == NULL) {
+	  fprintf(stderr, "libnet_init() failed: %s", errbuf);
+	  exit( -1 );
+	}
+                
+	while((c = getopt(argc, argv, "hd:I:s:r:m:k:Dp:V:F:vx:")) != EOF) {
+	  switch (c) {
+	   case 'h':
+		usage(argv[0]);
+		exit(0);
+		break;
+	   case 'd':
+		if ( strncmp(optarg, "rand", sizeof("rand")) == 0 ) {
+			printf("Using random dest IP's\n");
+			dst_ip = 1;	/* Just to pass sanity checks */
+			dst_ip_rand = 1;
+			break;
+		}
+		if ((dst_ip = libnet_name2addr4(l, optarg, LIBNET_RESOLVE)) == (u_int32_t)-1) {
+			fprintf(stderr, "Bad dest IP\n");
+			exit( -1 );
+		}
+		
+		break;
+	   case 's':
+		if ( strncmp(optarg, "rand", sizeof("rand")) == 0 ) {
+			printf("Using random source IP's\n");
+			src_ip = 1;	/* Just to pass sanity checks */
+			src_ip_rand = 1;
+			break;
+		}
+		if ((src_ip = libnet_name2addr4(l, optarg, LIBNET_RESOLVE)) == (u_int32_t)-1) {
+			fprintf(stderr, "Bad source IP\n");
+			exit( -1 );
+		}
+		break;
+	   case 'r':
+		seed = atoi(optarg);
+		break;
+	   case 'm':
+		max_pushed = atol(optarg);
+		break;
+	   case 'k':
+		skip = atol(optarg);
+		printf("Will not transmit first %li packets.\n", skip);
+		break;
+	   case 'D':
+		printout++;
+		break;
+	   case 'p':
+		num_to_send = atoi(optarg);
+		break;
+	   case 'V':
+		BadIPVer = atoi(optarg);
+		break;
+	   case 'F':
+		FragPct = atof(optarg);
+		break;
+	   case 'I':
+		IPLength = atof(optarg);
+		break;
+	   case 'x':
+		repeat = atoi(optarg);
+		break;
+	   case 'v':
+		printf("Version %s\n", VERSION);
+		exit(0);
+	   }
+	}
+
+	if ( !src_ip || !dst_ip ) {
+		usage(argv[0]);
+		exit(EXIT_FAILURE);
+	}
+
+	printf("Compiled against Libnet %s\n", LIBNET_VERSION);
+	printf("Installing Signal Handlers.\n");
+	if ( signal(SIGTERM, &sighandler) == SIG_ERR )
+		printf("Failed to install signal handler for SIGTERM\n");
+	if ( signal(SIGINT, &sighandler) == SIG_ERR )
+		printf("Failed to install signal handler for SIGINT\n");
+	if ( signal(SIGQUIT, &sighandler) == SIG_ERR )
+		printf("Failed to install signal handler for SIGQUIT\n");
+
+	printf("Seeding with %i\n", seed);
+	srand(seed);
+	max_pushed *= 1024;
+
+	if ( (buf = malloc(IP_MAXPACKET)) == NULL ) {
+	  perror("malloc: ");
+	  exit( -1 );
+	}
+
+        if ( max_pushed >= 10000000 )
+	  printf("No Maximum traffic limiter\n");
+        else printf("Maximum traffic rate = %.2f k/s\n", max_pushed/1024.0 );
+
+        printf("Bad IP Version\t= %.0f%%\t\t", BadIPVer);
+        printf("Odd IP Header Length\t= %.0f%%\t\t", IPLength);
+        printf("Frag'd Pcnt\t= %.0f%%\n", FragPct);
+
+
+	/* Drop them down to floats so we can multiply and not overflow */
+	BadIPVer	/= 100;
+	FragPct		/= 100;
+	IPLength	/= 100;
+
+    
+
+	/*************
+ 	* Main Loop *
+ 	*************/
+	gettimeofday(&tv, NULL);
+	gettimeofday(&starttime, NULL);
+
+	for(acx = 0; acx < num_to_send; acx++) {
+	
+		tos	= RAND8;
+		id	= acx & 0xffff;
+		ttl	= RAND8;
+		prot	= RAND16;
+
+		if ( rand() <= (RAND_MAX * FragPct) )
+			frag_off = RAND16;
+		else	frag_off = 0;
+
+		if ( src_ip_rand == 1 )
+		  src_ip = RAND32;
+		if ( dst_ip_rand == 1 )
+		  dst_ip = RAND32;
+
+		if ( rand() <= (RAND_MAX * BadIPVer ) )
+			ver = rand() & 0xf;
+		else	ver = 4;
+
+		if ( rand() <= (RAND_MAX * IPLength ) )
+			hl = rand() & 0xf;
+		else	hl = 5;
+
+		payload_s = rand() & 0x4ff;            /* length of 1279 */
+		
+		/* Build the IP header */
+		ip_hdr = (struct ip *) buf;
+		ip_hdr->ip_v    = ver;                 /* version 4 */
+		ip_hdr->ip_hl   = hl;                  /* 20 byte header */
+		ip_hdr->ip_tos  = tos;                 /* IP tos */
+		ip_hdr->ip_len  = htons(IP_H + payload_s);  /* total length */
+		ip_hdr->ip_id   = htons(id);           /* IP ID */
+		ip_hdr->ip_off  = htons(frag_off);     /* fragmentation flags */
+		ip_hdr->ip_ttl  = ttl;                 /* time to live */
+		ip_hdr->ip_p    = prot;                /* transport protocol */
+		ip_hdr->ip_sum  = 0;                   /* do this later */
+		ip_hdr->ip_src.s_addr = src_ip;
+		ip_hdr->ip_dst.s_addr = dst_ip;
+		
+		payload = (u_short *)(buf + IP_H);
+		for(cx = 0; cx <= (payload_s >> 1); cx+=1)
+			payload[cx] = RAND16;
+		payload[payload_s] = RAND16;
+		
+		if ( printout ) {
+			printf("%s ->",
+				inet_ntoa(*((struct in_addr*) &src_ip )));
+			printf(" %s tos[%i] id[%i] ver[%i] frag[%i]\n",
+				inet_ntoa(*((struct in_addr*) &dst_ip )), tos,
+				id, ver, frag_off);
+		}
+			
+		if ( skip <= acx ) {
+		  for ( cx = 0; cx < repeat; cx++ ) {
+		    c = libnet_write_raw_ipv4(l, buf, IP_H + payload_s);
+		    if (c != -1)
+		      datapushed+=c;
+		  }
+	/*  This is way too noisy!
+	 *		if (c < (signed) (IP_H + payload_s)) {
+	 *			perror("sendto: ");
+	 *			fprintf(stderr, "Packet Failed '%i'\n", c);
+	 *			printf("%s ->", 
+	 *			     inet_ntoa(*((struct in_addr*) &src_ip )));
+	 *			printf(" %s tos[%i] id[%i] ver[%i] "
+	 *			     "frag[%i]\n",
+	 *			     inet_ntoa(*((struct in_addr*) &dst_ip )),
+	 *				tos, id, ver, frag_off);
+	 *		}
+	 */
+		}
+
+		if ( !(acx % 1000) ) {
+			if ( acx == 0 )
+				continue;
+			gettimeofday(&tv2, NULL);
+			sec = (tv2.tv_sec - tv.tv_sec)
+			      - (tv.tv_usec - tv2.tv_usec) / 1000000.0;
+			printf(" %li @ %.1f pkts/sec and %.1f k/s\n", acx,
+				1000/sec, (datapushed / 1024.0) / sec);
+			datapushed=0;
+			gettimeofday(&tv, NULL);
+		}
+
+
+		/* Flood protection for low traffic limit only. */
+		if ( max_pushed < 10000000 ) {
+			gettimeofday(&tv2, NULL);
+			sec = (tv2.tv_sec - tv.tv_sec)
+		      		- (tv.tv_usec - tv2.tv_usec) / 1000000.0;
+			if ( (datapushed / sec) >= max_pushed )
+				usleep(10);	/* 10 should give up our timeslice */
+		}
+	}
+
+
+	gettimeofday(&tv, NULL);
+	printf("\nWrote %li packets in %.2fs @ %.2f pkts/s\n", acx,
+		(tv.tv_sec-starttime.tv_sec)
+		+ (tv.tv_usec-starttime.tv_usec) / 1000000.0,
+		acx / ((tv.tv_sec-starttime.tv_sec)
+                       + (tv.tv_usec-starttime.tv_usec)/1000000.0) );
+
+	libnet_destroy(l);
+	free(buf);
+	return ( 0 );
+}
+
+void usage(char *name)
+{
+   fprintf(stderr,
+	"usage: %s [-v] [-D] -s <source ip> -d <destination ip> [-r <random seed>]\n"
+	"          [-p <pkts to generate>] [-k <skip packets>] [-x <repeat times>]\n"
+	"          [-m <max kB/s to generate>]\n\n"
+	"	Percentage Opts: [-F frags] [-V <Bad IP Version>]\n"
+	"		         [-I <Random IP Header length>]\n"
+	"notes:\n"
+	"	[-D] causes packet info to be printed out -- DEBUGGING\n\n"
+	"       ex: -s a.b.c.d   -d a.b.c.d -F100\n"
+	"        100%% of the packets will be ^^^^ fragments\n"
+	"       ex: -s a.b.c.d   -d a.b.c.d -p 100 -r 103334\n"
+	"       ex: -s rand -d rand -r 23342\n"
+	"              ^^^^ causes random source addr\n"
+	"       ex: -s rand -d rand -k 10000 -p 10001 -r 666\n"
+	"           Will only send the 10001 packet with random seed 666\n"
+	"           this is especially useful if you suspect that packet is\n"
+	"           causing a problem with the target stack.\n"
+	"\n",
+	((char *) rindex(name, '/')) == ((char *) NULL)
+		? (char *) name
+		: (char *) rindex(name, '/') + 1);
+}
+
+void sighandler(int sig)
+{
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+
+	printf("\n");
+	printf("Caught signal %i\n", sig);
+
+	printf("Used random seed %i\n", seed);
+	printf("Wrote %li packets in %.2fs @ %.2f pkts/s\n", acx,
+		(tv.tv_sec - starttime.tv_sec)
+		  + (tv.tv_usec - starttime.tv_usec)/1000000.0,
+		acx / (( tv.tv_sec - starttime.tv_sec)
+		  + (tv.tv_usec - starttime.tv_usec)/1000000.0)
+		);
+
+	fflush(stdout);
+	exit(0);
+}

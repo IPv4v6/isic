@@ -1,0 +1,40 @@
+
+You need LIBNET 1.1.x to link ISIC version 0.07 against.
+http://www.packetfactory.net/projects/libnet
+
+
+Install:
+	./configure
+	make
+	make install
+	make clean	# Optional
+
+Note: It assumes the Libnet library file is installed under /usr/local/lib/.
+	Also, please make sure the path to the executable 'libnet-config' is
+	added in the environment setting.
+
+It successfully builds and works on:
+	FreeBSD 3.1
+	Debian Linux 2.1 (Hamm)		<- Named after Toy Story!
+	Redhat Linux 7.3
+	Redhat Linux 9.0
+	Ubuntu 5.10 (Breezy Badge)
+
+
+
+What should you use as the sending computer?
+	There are pro's and con's to both BSD and Linux.
+
+FreeBSD:  Has an extremely intelligent IP stack.  It assumes that it is more
+	intelligent than the programmer.  (It almost always is).  So it will
+	clean up some really bad IP Packets.
+
+Linux:	Linux has a brain-dead stack.  So when you send a packet and it is
+	totally illegal, it will still send it.  But I have seen linux
+	filling the pipe with UDP packets from a raw socket and the linux
+	kernel decided to mangle ALL of the UDP checksums.
+
+OpenBSD:  Now you're talking :-)  I can't test it right now because my keyboard
+	controller keeps flaking out.  Ratty Intel hardware.
+
+

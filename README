@@ -1,0 +1,209 @@
+ISIC -- IP Stack Integrity Checker
+
+by Shu Xiao & Mike Frantzen
+
+1)  Purpose
+2)  Contributors
+3)  History
+4)  Accomplishments
+5)  Copyright (BSD Style)
+
+
+
+
+1)  Purpose
+
+ISIC (and components) is intended to test the integrity of an IPv4 and IPv6 Stack
+and its component stacks (TCP, UDP, ICMP et. al.)  It does this by generating
+a controlled random packet (controlled randomness...  wacky huh?).  The user can
+specify he/she/it [We are tempted to put 'it' before 'she' :-)] wants a stream of
+TCP packets.  He/she/it suspects that the target has weak handling of IP Options
+(aka Firewall-1).  So he/she/it does a 'tcpsic -s rand -d firewall -I100'.  And
+observes the result.
+
+A great use for ISIC would be to fire it through a firewall and see if the
+firewall leaks packets.  But of course that would be illegal because Network
+Associates owns a bogus patent on that :-)  You could do that by setting the
+default route on the sending computer to the firewall.....  But that would be
+illegal.  (But Mike couldn't legally have a beer so do you think he cared about
+laws then?)
+
+By far the most common use for these tools is testing IDS systems.  A day
+after Mike took the source offline and moved it to a cvs server, a half dozen
+people working on seperate home-grown IDS systems emailed requesting the
+source be put back up.
+
+
+
+
+
+2)  Contributors
+
+Shu Xiao	<sxiao@cisco.com>	    Current owner
+Mike Frantzen	<frantzen@nfr.com>	    Original creater
+
+Matt Hargett	<matt@use.net>		    Various patches
+Dug Song	<dugsong@monkey.org>	    Various patches
+Kelly Yancey	<kelly@nttmcl.com>	    Various bug fix patches
+Marcelo Goes	<vanquirius@gentoo.org>	    Gcc 4 patch.
+Todd Sherer	<todds@logsoft.com>	    Test on Redhat 7.3
+Seth Bollinger	<seth_bollinger@digi.com>   Multisic prototype
+Alex Behar	<alexbr@radware.com>	    Gcc 4 patch
+Marc Tardif	<marc@interunion.com>	    Gcc 4 patch
+Sheng Li	<sheli@cisco.com>	    Patch for flood control and 
+					    unit/regression tests
+
+
+The idea for ISIC came from two of Mike Frantzen co-workers during his 
+summer job:
+
+Kevin Kadow	<kadokev@msg.net>
+Mike Scher	<strange@cultural.com>
+
+
+
+
+3)  History
+
+Mike Frantzen wrote ISIC v.01 over a two week period on a Redhat 5.1 box.  Well, 
+(huddle around kiddies)  one weekend he came back from work and turned on the 
+monitor to discover loads of scsi errors.  He had the binaries compiled statically 
+on a wee little Trinux floppy.  He was able to get the machine partially up and
+running and got a little bit of the source off.  He yanked the harddrive and
+dropped it in Mike Scher's box (Linux).  It fscked (sed s/s/u/g) the drive and
+He grabbed the lost+found directory.  He got the source back.  Much to his suprise,
+large (remarkably block sized) chunks were missing/rearranged across ALL the
+files.  Every linux box he have ever had came back to bite him in the ass.
+
+So over a weekend, Mike rewrote isic, tcpsic, and udpsic.  Icmpsic took a bit
+longer... damn bugs.   Total time: 6 hours.   Total time on icmpsic after he
+forgot to add the IP Header length to the pointer to the ip options, 3 hours.
+
+Bah.  He fucked up in version 0.02.  His Makefile wasn't compatible with future
+versions of Libnet....  Whoops...  Mike's fault.  Now we have version 0.03.
+
+Hehe, somehow forgot to randomize the TCP flags in 0.03 ;) [Thanks Florian]
+
+Mike stuck esic (ether frame spewer) into the package for 0.04.  He had it
+kicking around so why not toss it in.  (Heh, had to redeem himself for the
+TCP flags fuckup).
+
+It had been long time no updates since the release of 0.05, the last one working
+with Libnet 1.0.x. Then for whatever the unknown reason, our buddy Mike Schiffman, 
+rewrote Libnet and now version 1.1.x is not back compatible :(.
+
+In later 2004, Shu Xiao, working as a security testing engineer, sent patches to 
+Mike Frantzen that made ISIC compiled with new Libnet ;) along with other fixes
+(yes, it still has bugs).  This became a perfect time Mike shifted the
+responsibility to Shu (Mike finally relieved :), and version 0.06 was born.
+
+The package 0.07 is a kind of overdue release. Shu had the major changes for new 
+IPv6 gears ready in middle of 2005, but got overwhelmed by diaper changes and
+had no chance to finalize it till the end of 2006 (pushed by his co-worker
+Sheng Li). Yet 0.07 release includes a few important fixes slipped from 0.06,
+e.g. randomness for 32-bit data. It is supposed to singe more fur off your cat
+:-!
+
+
+
+
+
+
+4)  Accomplishments
+
+If ISIC finds any vulnerabilities for you, please let me know.  we would love to
+know the product and type of vulnerability.  We will withhold the information
+from this list at your request.  If you give us permission to add it to this
+list, you will get full credit.
+
+If you manage a Bugtraq post, we appreciate finding our name in the list of
+credits :-)
+
+ISIC (v0.01)		Unreleased version.
+	- During non-extensive testing, it failed to find a vulnerability
+	  in Cisco's PIX (4.2?)				- Mike Frantzen
+
+
+	- Logging vulnerability in Checkpoint Firewall-1 4.0
+		Could predictably get a packet logged with a different source
+		IP.  Unable to reliably and consistently reproduce.
+		(NOT RELEASED)				- Mike Frantzen
+	- IP Stack vulnerability in Checkpoint Firewall-1 4.0
+		Wacky IP packets sometimes descended deep into the rulebase
+		but got caught on drop all rule.  Unexploitable.
+		(NOT RELEASED)				- Mike Frantzen
+
+
+	- Panic of Gauntlet 5.5 Beta
+		(NOT RELEASED)				- Mike Frantzen
+	- Lock up Gauntlet 5.5 Beta
+		(NOT RELEASED)				- Mike Frantzen
+	- Frag DOS of Gauntlet 5.5 Beta
+		(NOT RELEASED)				- Mike Frantzen
+
+
+	- Lock up of Gauntlet 5.0
+		ICMP Parameter Problem packets with IP Options in the
+		encapsulated packet caused Gauntlet to lock up.
+		(BUGTRAQ'd)				- Mike Frantzen
+
+ISIC (v0.02) --
+ISIC (v0.03)
+	- Remote exploit of Raptor 6.x			- CERIAS
+		(BUGTRAQ'd)
+
+ISIC (v0.05)
+	- NetBSD Panics when sent unaligned IP options (NHC20000504a.0)
+				- NHC Research [www.newhackcity.net]
+
+	- Remote Denial of Service against Be/OS
+		The Be/OS Operating System version 5.0 have a 
+		vulnerability in the tcp fragmentation which can 
+		lock up the entire system, needing a cold reset to
+		back work.
+				- AUX Technologies [www.aux-tech.org]
+
+	- Internet & Acceleration Server Event DoS
+		Defcom Labs Advisory def-2001-16: If an alert action 
+		has been chosen in the ISA server console, a malicious
+		attacker can cause a Denial of Service situation on the
+		ISA server.
+				- Peter Grndl & Andreas Sandor
+
+ISIC (v0.06)
+	Various bugs leading to DoS (system crash, hang, freeze) found 
+	by many vendors' internal tests using this version of ISIC. 
+
+
+
+
+
+
+5)  Copyright  --  Modified BSD Source License
+
+ISIC is Copyright (c) 1999-2007. 
+Shu Xiao (San Jose, CA, USA) and Mike Frantzen (Chicago, IL, USA).
+All rights reserved.
+
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+1. Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer in the
+   documentation and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+SUCH DAMAGE.
+

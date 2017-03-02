@@ -1,0 +1,228 @@
+.\" Process this file with
+.\" groff -man -Tascii foo.1
+.\" 
+.\" MANEDIT
+.TH "ISIC" "1" "JANUARY 2007" "v0.07" "User Manuals"
+.SH "NAME"
+ISIC - IP Stack Integrity Checker
+.SH "SYNOPSIS"
+.B esic -i
+.I <interface>
+.B [...]
+.br 
+.B isic -s 
+.I <source ip> 
+.B -d 
+.I <destination ip> 
+.B [...]
+.br 
+.B tcpsic -s 
+.I <source ip>[,port]
+.B -d 
+.I <destination ip>[,port]
+.B [...]
+.br 
+.B udpsic -s 
+.I <source ip>[,port]
+.B -d 
+.I <destination ip>[,port]
+.B [...]
+.br 
+.B icmpsic -s 
+.I <source ip>
+.B -d 
+.I <destination ip>
+.B [...]
+.br 
+.B multisic -s
+.I <source ip>[,port]
+.B -d
+.I <destination ip>[,port]
+.B -i
+.I <interface>
+.B [...]
+.br
+.B isic6 -s 
+.I <source ip>
+.B -d 
+.I <destination ip>
+.B [...]
+.br 
+.B tcpsic6 -s 
+.I <source ip>[,port]
+.B -d 
+.I <destination ip>[,port]
+.B [...]
+.br 
+.B udpsic6 -s 
+.I <source ip>[,port]
+.B -d 
+.I <destination ip>[,port]
+.B [...]
+.br 
+.B imcpsic6 -s 
+.I <source ip>
+.B -d 
+.I <destination ip>
+.B [...]
+.br 
+.SH "DESCRIPTION"
+.B ISIC
+is a suite of utilities to exercise the stability of an IP Stack 
+and its component stacks (TCP, UDP, ICMP et. al.) It generates piles 
+of pseudo random packets of the target protocol. The packets are given 
+tendancies to conform to. For example 50% of the packets generated can
+have IP Options, and 25% of the packets can be IP fragments... But the
+percentages are arbitrary and most of the packet fields have a configurable
+tendancy.
+.PP 
+The packets are then sent against the target machine to either penetrate
+its firewall rules or find bugs in the IP stack. ISIC also contains an 
+utility (esic) that generates raw Ethernet frames to examine hardware 
+implementations, and the "multisic" tool to check multicast code integrity.
+.PP 
+Starting from version
+.IR 0.07 ,
+ISIC includes utilities (*sic6) to test IPv6 protocol
+stack. These would of course need IPv6 enabled in the system as a prerequisite.
+.SH "GENERAL OPTIONS"
+.IP "-c <# of packets>"
+For esic only, number of packets to send. It is equivlent to \-p option 
+used by other utilities. The default is
+.IR 2^32 .
+.IP "-d <destination MAC/IP>"
+Optional for esic, required for all others. For esic, this specifies 
+destination MAC address, and the default will be broadcast address
+.IR ff:ff:ff:ff:ff:ff .
+For all others, this specifies destination IP address. Use "\-d rand" to send packets
+to random destination MAC/IP address. For multisic, "\-d rand" will make destination
+IP address picked from the list [224, 225, 232, 233, 234, 235, 236, 237, 238, 239]
+randomly.
+.IP "-i <interface>"
+Required by esic and multisic. This specifies the interface for outgoing packets.
+.IP "-k <num>"
+This specifies the number of skipped packets. This option
+is useful for identifying the exact packet(s) causing the problem. Default is 
+.IR 0 .
+.IP "-l <length>"
+For esic only, the maximum length of packet generated. Default is maximum
+ethernet frame size
+.IR 1500 .
+Length greater than default value will be rejected.
+.IP "-m <num>"
+For esic, this is the number of packets between printout, default to
+.IR 1000 .
+For all others, this specifies the maximum speed of traffic generation, unit is kB/s
+.IP "-p <num>"
+For esic, this specifies upper layer protocol number in the ethernet header, and
+default to type IP 
+.IR 0x0800 .
+For all others this is the number of packets to send, default is
+.IR 2^32 .
+Note esic uses \-c instead for this purpose.
+.IP "-r <random seed>"
+Specify the random seed, default to current process id.
+.IP "-s <source MAC/IP>"
+Optional for esic, required for all others. For esic, this specifies
+source MAC address, and the default will be the MAC address of given interface.
+For all others, this specifies source IP address. Use "-s rand" to set source
+MAC/IP address to random value.
+.IP "-x <num>"
+Available to all but esic. Send each packet <num> times, the default value is
+.IR 1 .
+.IP -v
+Print out the current version of ISIC test suite.
+.IP "-z <source MAC>"
+Optional for multisic. This specifies source MAC address for outgoing multicast
+packets, and the default will be the MAC address of given interface. Use "-z rand"
+to set source MAC address to random value.
+.IP -D
+Available to all but esic, this turns on the debugging printout. Caution: 
+the program will print out information of every generated packet, the entire
+output will be huge.
+
+.SH "PERCENTAGE OPTIONS"
+These options are defined to all but esic. All percentage options have
+default value of
+.IR 10 .
+.IP -i
+Available for icmpsic and icmpsic6 only, the percentage of ICMP packets with
+bad ICMP checksum.
+.IP -t
+Available for tcpsic and tcpsic6 only, the percentage of TCP packets with
+bad TCP checksum.
+.IP -u
+Available for tcpsic and tcpsic6 only, the percentage of TCP packets with
+urgent flag set.
+.IP -F
+The percentage of fragmented packets. Note for *sic6, this is the percentage
+of IPv6 packets with random fragment extension header.
+.IP -I
+ For *sic6, this is the percentage of IPv6 packets with random destination
+option header. For isic, this specifies the percentage of packets with
+random IP header length. For tcpsic, udpsic and icmpsic, this is the
+percentage of packets with random IP option.
+.IP -T
+Available for tcpsic and tcpsic6 only, the percentage of TCP options in
+the TCP header.
+.IP -U
+Available for udpsic and udpsic6 only, the percentage of UDP packets with
+bad UDP checksum.
+.IP -V
+Avialable for isic, tcpsic, udpsic, icmpsic and isic6, this is the percentage
+of packets with bad IP version value in the header.
+
+.SH "EXAMPLES"
+.IP "esic -i eth0 -s 01:02:34:56:07:89 -p rand -m 5000"
+.IP
+.br
+.RS
+This will generate ethernet frames with random protocol number in the ethernet
+header, and send out through eth0 interface. In the frames, the source
+MAC address is fixed 01:02:34:56:07:89, destination will be the default broadcast
+MAC address. There will be a printout line for every 5000 frames.
+.RE
+.IP "isic -s rand -d 10.11.12.13 -F 50 -p 100 -k 20 -r 10"
+.IP
+.RS
+This asks isic to generate 100 IP packets with randsom source address
+and fixed destination address 10.11.12.13. The random seed is set to 10.
+half of packets will be fragments. When sending out, first 20 packets will
+be skipped, isic will start from the 21st packet.
+.RE
+.IP "tcpsic -s 1.2.3.4,69 -d 21.22.23.24 -x 2 -m 1000 -T 30 -t 50"
+.IP
+.RS
+This advises tcpsic to generate TCP packets with source address 1.2.3,4 and
+source TCP port 69, and destination address 21.22.23.24 and random destination
+TCP port. Each packet will be sent out twice, and the overall maximum speed is
+1000kB/s. Of all the TCP packets generated, 30% of packets will have random
+TCP options, and 50% will have bad TCP checksum.
+.RE
+.IP "multisic -s rand -d 224.0.0.5 -i eth2 -p 50000 -F 50 -z ff:ff:ff:ff:ff:ff"
+.IP
+.RS
+This lets multisic to send 50000 UDP packets to multicast address 224.0.0.5 with 
+random source address and source/destination UDP ports. The egress interface is 
+forced to be eth2. 50% of outgoing packets will have fragments. And the source
+MAC address is set to ff:ff:ff:ff:ff:ff.
+.RE
+.IP "udpsic6 -s rand -d  2001:1:2:3:4::2,161 -p 1000000 -I 90 -U 20"
+.IP
+.RS
+This lets udpsic6 to send 1 million IPv6 UDP packets with random source address
+and source UDP port, to destination address 2001:1:2:3:4::2 and UDP port 161 (SNMP port).
+90% of outgoing packets will have random IPv6 destination option header, and 20% of
+total packets will include incorrect UDP checksum.
+.RE
+
+
+.SH "AUTHOR"
+Shu Xiao <sxiao@cisco.com>
+.SH "SEE ALSO"
+Libnet (http://www.packetfactory.net/projects/libnet)
+.br 
+ISIC online (http://www.packetfactory.net/projects/ISIC) or
+            (http://isic.sourceforge.net)
+.br 
+ip6sic (http://ip6sic.sourceforge.net)
