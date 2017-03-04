@@ -1,0 +1,14 @@
+language: c
+
+os: linux
+
+compiler:
+ - gcc
+ - clang
+
+addons:
+  apt:
+    packages:
+     - libnet1-dev
+
+script: ./configure && make
