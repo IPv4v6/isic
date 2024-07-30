@@ -1,3 +1,4 @@
+#define _DEFAULT_SOURCE 1
 #include <strings.h>
 
 #ifndef __FAVOR_BSD
